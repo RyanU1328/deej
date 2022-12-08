@@ -3,13 +3,13 @@ package deej
 import (
 	"bufio"
 	"errors"
-	"fmt"
+	//"fmt"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
+    "net/http"
 	"github.com/jacobsa/go-serial/serial"
 	"go.uber.org/zap"
 
@@ -90,19 +90,19 @@ func (sio *SerialIO) Start() error {
 		MinimumReadSize: uint(minimumReadSize),
 	}
 
-	sio.logger.Debugw("Attempting serial connection",
-		"comPort", sio.connOptions.PortName,
-		"baudRate", sio.connOptions.BaudRate,
-		"minReadSize", minimumReadSize)
-
-	var err error
-	sio.conn, err = serial.Open(sio.connOptions)
-	if err != nil {
-
-		// might need a user notification here, TBD
-		sio.logger.Warnw("Failed to open serial connection", "error", err)
-		return fmt.Errorf("open serial connection: %w", err)
-	}
+//	sio.logger.Debugw("Attempting serial connection",
+//		"comPort", sio.connOptions.PortName,
+//		"baudRate", sio.connOptions.BaudRate,
+//		"minReadSize", minimumReadSize)
+//
+//	var err error
+//	sio.conn, err = serial.Open(sio.connOptions)
+//	if err != nil {
+//
+//		// might need a user notification here, TBD
+//		sio.logger.Warnw("Failed to open serial connection", "error", err)
+//		return fmt.Errorf("open serial connection: %w", err)
+//	}
 
 	namedLogger := sio.logger.Named(strings.ToLower(sio.connOptions.PortName))
 
@@ -203,21 +203,55 @@ func (sio *SerialIO) readLine(logger *zap.SugaredLogger, reader *bufio.Reader) c
 
 	go func() {
 		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
+//			line, err := reader.ReadString('\n')
+//			if err != nil {
+//
+//				if sio.deej.Verbose() {
+//					logger.Warnw("Failed to read line from serial", "error", err, "line", line)
+//				}
+//
+//				// just ignore the line, the read loop will stop after this
+//				return
+//			}
+//
+//			if sio.deej.Verbose() {
+//				logger.Debugw("Read new line", "line", line)
+//			}
+            var htmlFile string
+            var line string
+            for {
+                resp, err := http.Get(sio.connOptions.PortName)
+                if resp != nil{
+                    defer resp.Body.Close()
+                    body, err:= io.ReadAll(resp.Body)
+                    if err != nil {
 
-				if sio.deej.Verbose() {
-					logger.Warnw("Failed to read line from serial", "error", err, "line", line)
-				}
+                        time.Sleep(100)
+                    }
+                    htmlFile = string(body)
+                    break
+                }
+                if err != nil {
 
-				// just ignore the line, the read loop will stop after this
-				return
-			}
+                    time.Sleep(100)
+                }
+            }
 
-			if sio.deej.Verbose() {
-				logger.Debugw("Read new line", "line", line)
-			}
 
+            v := strings.Split(htmlFile, "<h1>")
+
+            var x = v[1]
+
+            y := strings.Split(x, "</h1>")
+
+            var z = y[0]
+
+            a := strings.Split(z, ":")
+
+            if a[0] == "PC"{
+
+                line = a[1] + "\r\n"
+            }
 			// deliver the line to the channel
 			ch <- line
 		}
